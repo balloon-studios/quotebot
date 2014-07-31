@@ -76,6 +76,7 @@ def create_quote():
         quote_text = request.json['text']
     else:
         abort(400)
+
    # print quote_text
     matches=re.findall(r'\"(.+?)\"',quote_text)
     quote = ""
@@ -92,20 +93,25 @@ def create_quote():
     quote_by = parts[-1]
     print quote
     print quote_by
-    quote = {
+    quote_obj = {
         'quote': quote,
         'by': quote_by
     }
     #add quote to list
-    quotes.append(quote)
+    quotes.append(quote_obj)
 
     #write quote to csv file for future usage
     with open('webapps/slack_webhooks/slack_webhooks/quoteboard.csv', 'ab') as csvfile:
         quote_writer = csv.writer(csvfile, delimiter=',',
                             quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-        quote_writer.writerow([quote['by'], quote['quote']])
+        quote_writer.writerow([quote_obj['by'], quote_obj['quote']])
 
-    return jsonify({"status": "OK"})
+    for name, initials in quoters.iteritems():
+        if initials == quote_by:
+            quote_by = name
+            break
+    return_quote = "Quoth *"+ quote_by +"*: "+ quote
+    return jsonify({"text": return_quote})
 
 
 def init_db():
