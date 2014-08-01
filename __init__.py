@@ -4,6 +4,8 @@ from flask import abort
 from flask import make_response
 from flask import request
 
+from markov import Markov
+
 import csv
 import random
 import os
@@ -11,7 +13,9 @@ import re
 import urllib 
 
 app = Flask(__name__)
-app.debug = True
+#app.config.from_object('slack_webhooks.default_settings')
+#app.config.from_envvar('SLACK_WEBHOOKS_SETTINGS')
+app.debug=True
 
 class WebFactionMiddleware(object):
     def __init__(self, app):
@@ -115,6 +119,13 @@ def create_quote():
                             quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
         quote_writer.writerow([quote_obj['by'], quote_obj['quote']])
 
+    with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'ab') as markovfile:
+        if quote[-1] != '.' and quote[-1] != '!' and quote[-1] != '?':
+            quote += '. '
+        else:
+            quote += ' '
+        markovfile.write(quote)
+
     for name, initials in quoters.iteritems():
         if initials == quote_by:
             quote_by = name
@@ -122,19 +133,35 @@ def create_quote():
     return_quote = "Quoth *"+ quote_by +"* \" "+ quote +" \""
     return jsonify({"text": return_quote})
 
+@app.route('/genquote', methods = ["POST"])
+def generate():
+    markov = Markov(open('webapps/slack_webhooks/slack_webhooks/markov.txt'))
+    rand_int = random.randint(3,7)
+    new_quote = markov.generate_markov_text(rand_int)
+    return jsonify({"text": new_quote})
 
 def init_db():
     #initialise the db by reading in all of the existing quotes
     print "initing db"
     print os.getcwd()
+    quotes_text = ""
     with open('webapps/slack_webhooks/slack_webhooks/quoteboard.csv') as csvfile:
         quote_reader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in quote_reader:
+            quote_text = row[1]
             quote = {
-                'quote': row[1],
+                'quote': quote_text,
                 'by': row[0]
             }
             quotes.append(quote)
+            if quote_text[-1] != '.' and quote_text[-1] != '!' and quote_text[-1] != '?':
+                quote_text += '. '
+            else:
+                quote_text += ' '
+
+            quotes_text += quote_text
+            with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'wb') as markovfile:
+                markovfile.write(quotes_text)
 
 init_db()
 
