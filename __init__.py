@@ -64,7 +64,7 @@ def get_quote():
     
     if len(filtered_quotes) > 0:
         quote = random.choice(filtered_quotes)
-        quote_string = "*"+ quote['by'] + "*: "+ quote['quote']
+        quote_string = "*"+ quote['by'] + "* - \""+ quote['quote'] +"\""
         print "returning quote: "+ quote_string
         return jsonify({'text': quote_string})
 
@@ -119,7 +119,7 @@ def create_quote():
         if initials == quote_by:
             quote_by = name
             break
-    return_quote = "Quoth *"+ quote_by +"*: "+ quote
+    return_quote = "Quoth *"+ quote_by +"* \" "+ quote +" \""
     return jsonify({"text": return_quote})
 
 
