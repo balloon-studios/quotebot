@@ -62,10 +62,13 @@ def get_quote():
 
     print filtered_quotes
     
-    quote = random.choice(filtered_quotes)
-    quote_string = "*"+ quote['by'] + "*: "+ quote['quote']
-    print "returning quote: "+ quote_string
-    return jsonify({'text': quote_string})
+    if len(filtered_quotes) > 0:
+        quote = random.choice(filtered_quotes)
+        quote_string = "*"+ quote['by'] + "*: "+ quote['quote']
+        print "returning quote: "+ quote_string
+        return jsonify({'text': quote_string})
+
+    return jsonify({'text': "Cannot find a quote by "+ quoter})
 
 
 @app.route('/quotes', methods = ["POST"])
@@ -77,6 +80,7 @@ def create_quote():
     else:
         abort(400)
 
+    quote_text.strip()
    # print quote_text
     matches=re.findall(r'\"(.+?)\"',quote_text)
     quote = ""
@@ -86,11 +90,16 @@ def create_quote():
             quote += "\n"
         quote += match
 
-    quote_text.replace("'", "")
+    #quote_text.replace("'", "")
+    #print "PRE regex: "+ quote_text
+    quote_by = re.sub(r'([^\s\w]|_)+', '', quote_text)
+    quote_by = quote_by.replace("addquote", "")
+    quote_by = quote_by.strip()
+    #print "POST regex: "+ quote_by
 
-    parts = quote_text.split(" ")
+    #parts = quote_text.split(" ")
     #print parts
-    quote_by = parts[-1]
+    #quote_by = parts[-1]
     print quote
     print quote_by
     quote_obj = {
