@@ -49,8 +49,10 @@ quoters = {
 
 @app.route('/quote', methods = ["POST"])
 def get_quote():
+    # get the quote info from the form
     quoter = request.form['text'].replace("quote", "")
-    print "|"+quoter+"|"
+
+    # work out which initials/name to look for
     if len(quoter) > 0:
         quoter = str(quoter).strip()
     if quoter == "me":
@@ -59,6 +61,9 @@ def get_quote():
         quoter = quoters[quoter]
     
     print quoter
+
+    # filter the quotes to include only the quoter, if a specific quoter 
+    # has been requested
     if len(quoter) == 0:
         filtered_quotes = quotes
     else:
@@ -66,17 +71,21 @@ def get_quote():
 
     print filtered_quotes
     
+    # if there are quotes to search, selet a random one,
+    # otherwise return a nice message saying there are no quotes
     if len(filtered_quotes) > 0:
         quote = random.choice(filtered_quotes)
         quote_string = "*"+ quote['by'] + "* - \""+ quote['quote'] +"\""
         print "returning quote: "+ quote_string
         return jsonify({'text': quote_string})
 
-    return jsonify({'text': "Cannot find a quote by "+ quoter})
+    return jsonify({'text': "Cannot find any quotes by "+ quoter})
 
 
 @app.route('/quotes', methods = ["POST"])
 def create_quote():
+    # get the text either from the form data (posted from Slack)
+    # or from the POST data (curl or some other means)
     if len(request.form) > 0:    
         quote_text = request.form['text'] #.encode('utf-8', 'replace')
     elif request.json is not None:
@@ -84,8 +93,8 @@ def create_quote():
     else:
         abort(400)
 
-    quote_text.strip()
-   # print quote_text
+    # find everything that is between quotes - this is the quote  -and then
+    # remove the quotes from the text
     matches=re.findall(r'\"(.+?)\"',quote_text)
     quote = ""
     for match in matches:
@@ -94,16 +103,12 @@ def create_quote():
             quote += "\n"
         quote += match
 
-    #quote_text.replace("'", "")
-    #print "PRE regex: "+ quote_text
+    # remove all punctuation except for whitespace and any bot text to leave
+    # only the quoter information
     quote_by = re.sub(r'([^\s\w]|_)+', '', quote_text)
     quote_by = quote_by.replace("addquote", "")
     quote_by = quote_by.strip()
-    #print "POST regex: "+ quote_by
 
-    #parts = quote_text.split(" ")
-    #print parts
-    #quote_by = parts[-1]
     print quote
     print quote_by
     quote_obj = {
@@ -119,6 +124,7 @@ def create_quote():
                             quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
         quote_writer.writerow([quote_obj['by'], quote_obj['quote']])
 
+    # add quote to markov file for use in quote generation
     with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'ab') as markovfile:
         if quote[-1] != '.' and quote[-1] != '!' and quote[-1] != '?':
             quote += '. '
@@ -126,15 +132,19 @@ def create_quote():
             quote += ' '
         markovfile.write(quote)
 
+    # look to see if we can replace initils with a name in the return text
     for name, initials in quoters.iteritems():
         if initials == quote_by:
             quote_by = name
             break
+
+    # return a nice message so everyone knows it worked
     return_quote = "Quoth *"+ quote_by +"* \" "+ quote +" \""
     return jsonify({"text": return_quote})
 
 @app.route('/genquote', methods = ["POST"])
 def generate():
+    # create a markov chain and generate random markov text to return
     markov = Markov(open('webapps/slack_webhooks/slack_webhooks/markov.txt'))
     rand_int = random.randint(3,7)
     new_quote = markov.generate_markov_text(rand_int)
