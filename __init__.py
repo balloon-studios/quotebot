@@ -46,8 +46,15 @@ quoters = {
 #def not_found(error):
 #    return make_response(jsonify({'error': 'Not found'}), 404)
 
+words_to_ignore = set(["A", "AND", "THE", "IT", "TO", "IF"])
+
 def strip_non_alphanumeric(from_string):
     return re.sub(r'([^\s\w]|_)+', '', from_string)
+
+def get_bag_of_words(from_string):
+    bag_of_words = set(strip_non_alphanumeric(from_string).upper().split())
+    bag_of_words = bag_of_words.difference(words_to_ignore)
+    return bag_of_words
 
 @app.route('/searchquote', methods=["POST"])
 def search_quotes():
@@ -67,22 +74,25 @@ def search_quotes():
         return jsonify({'text': "Unable to find a search term"})
     
     # remove all punctuation for processing and make it all upper case for searching
-    search_term = strip_non_alphanumeric(search_term).upper()
-    search_bag = set(search_term.split())
+    #search_term = strip_non_alphanumeric(search_term).upper()
+   # search_bag = set(search_term.split())
+    search_bag = get_bag_of_words(search_term)
+    print search_bag
 
     number_of_matched_words = 0
 
-    best_match_quote = ""
+    best_match_quote = None
+    best_match_word_bag = set()
 
     for quote in quotes:
-        compare_quote = strip_non_alphanumeric(quote['quote']).upper()
-        compare_bag = set(compare_quote.split())
+        compare_bag = get_bag_of_words(quote['quote'])
         intersection_bag = compare_bag.intersection(search_bag)
         if number_of_matched_words < len(intersection_bag):
             number_of_matched_words = len(intersection_bag)
             best_match_quote = quote
 
-    if len(best_match_quote) > 0:
+
+    if best_match_quote is not None:
         quote_string = "*"+ best_match_quote['by'] + "* - \""+ best_match_quote['quote'] +"\""
         print "returning quote: "+ quote_string
         return jsonify({'text': quote_string})
