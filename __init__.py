@@ -1,7 +1,6 @@
 from flask import Flask
 from flask import jsonify
 from flask import abort
-from flask import make_response
 from flask import request
 
 from markov import Markov
@@ -21,7 +20,7 @@ class WebFactionMiddleware(object):
     def __init__(self, app):
         self.app = app
     def __call__(self, environ, start_response):
-        environ['SCRIPT_NAME'] = '/webhooks'
+        environ['SCRIPT_NAME'] = '/slack_webhooks'
         return self.app(environ, start_response)
 
 app.wsgi_app = WebFactionMiddleware(app.wsgi_app)
@@ -46,6 +45,51 @@ quoters = {
 #@app.errorhandler(404)
 #def not_found(error):
 #    return make_response(jsonify({'error': 'Not found'}), 404)
+
+def strip_non_alphanumeric(from_string):
+    return re.sub(r'([^\s\w]|_)+', '', from_string)
+
+@app.route('/searchquote', methods=["POST"])
+def search_quotes():
+    if len(request.form) > 0:    
+        quote_text = request.form['text'] #.encode('utf-8', 'replace')
+    elif request.json is not None:
+        quote_text = request.json['text']
+    else:
+        abort(400)
+
+    index_of_search_term = quote_text.find("quote")
+    index_of_search_term += len("quote about")
+
+    search_term = quote_text[index_of_search_term:len(quote_text)].strip()
+
+    if search_term is None or len(search_term) == 0:
+        return jsonify({'text': "Unable to find a search term"})
+    
+    # remove all punctuation for processing and make it all upper case for searching
+    search_term = strip_non_alphanumeric(search_term).upper()
+    search_bag = set(search_term.split())
+
+    number_of_matched_words = 0
+
+    best_match_quote = ""
+
+    for quote in quotes:
+        compare_quote = strip_non_alphanumeric(quote['quote']).upper()
+        compare_bag = set(compare_quote.split())
+        intersection_bag = compare_bag.intersection(search_bag)
+        if number_of_matched_words < len(intersection_bag):
+            number_of_matched_words = len(intersection_bag)
+            best_match_quote = quote
+
+    if len(best_match_quote) > 0:
+        quote_string = "*"+ best_match_quote['by'] + "* - \""+ best_match_quote['quote'] +"\""
+        print "returning quote: "+ quote_string
+        return jsonify({'text': quote_string})
+
+    print "Unable to find a matching quote"
+    return jsonify({'text': "Cannot find any quotes that match the search "+ search_term})
+
 
 @app.route('/quote', methods = ["POST"])
 def get_quote():
@@ -105,7 +149,7 @@ def create_quote():
 
     # remove all punctuation except for whitespace and any bot text to leave
     # only the quoter information
-    quote_by = re.sub(r'([^\s\w]|_)+', '', quote_text)
+    quote_by = strip_non_alphanumeric(quote_text)
     quote_by = quote_by.replace("addquote", "")
     quote_by = quote_by.strip()
 
