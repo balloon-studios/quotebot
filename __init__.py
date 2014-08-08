@@ -10,6 +10,7 @@ import random
 import os
 import re
 import urllib 
+from nltk.corpus import stopwords
 
 app = Flask(__name__)
 #app.config.from_object('slack_webhooks.default_settings')
@@ -39,22 +40,35 @@ quoters = {
     'jabley': 'JA',
     'fatbusinessman': 'DT',
     'elly': 'EW',
-    'pkqk': 'AJ'
+    'pkqk': 'AJ',
+    'the_richey': "PR",
+    'SarahPrag': "SP"
 }
 
 #@app.errorhandler(404)
 #def not_found(error):
 #    return make_response(jsonify({'error': 'Not found'}), 404)
 
-words_to_ignore = set(["A", "AND", "THE", "IT", "TO", "IF"])
+stopwords_to_remove = set(stopwords.words("english"))
 
 def strip_non_alphanumeric(from_string):
     return re.sub(r'([^\s\w]|_)+', '', from_string)
 
 def get_bag_of_words(from_string):
-    bag_of_words = set(strip_non_alphanumeric(from_string).upper().split())
-    bag_of_words = bag_of_words.difference(words_to_ignore)
+    bag_of_words = set(strip_non_alphanumeric(from_string).lower().split()) - stopwords_to_remove
     return bag_of_words
+
+def quote_as_string(quote):
+    quote_string = ""
+    i = 0
+    for quote_by in quote['by']:
+        quote_text = quote['quotes'][i]
+        if len(quote_string) > 0:
+            quote_string += "\n"
+        quote_string += "*"+ quote_by + "* - \""+ quote_text +"\""
+        i = i + 1
+    print quote_string
+    return quote_string
 
 @app.route('/searchquote', methods=["POST"])
 def search_quotes():
@@ -85,7 +99,7 @@ def search_quotes():
     best_match_word_bag = set()
 
     for quote in quotes:
-        compare_bag = get_bag_of_words(quote['quote'])
+        compare_bag = get_bag_of_words(quote['quote'].join("\n"))
         intersection_bag = compare_bag.intersection(search_bag)
         if number_of_matched_words < len(intersection_bag):
             number_of_matched_words = len(intersection_bag)
@@ -121,7 +135,7 @@ def get_quote():
     if len(quoter) == 0:
         filtered_quotes = quotes
     else:
-        filtered_quotes = filter(lambda t: t['by'] == quoter, quotes)
+        filtered_quotes = filter(lambda t: quoter in t['by'], quotes)
 
     print filtered_quotes
     
@@ -129,7 +143,7 @@ def get_quote():
     # otherwise return a nice message saying there are no quotes
     if len(filtered_quotes) > 0:
         quote = random.choice(filtered_quotes)
-        quote_string = "*"+ quote['by'] + "* - \""+ quote['quote'] +"\""
+        quote_string = quote_as_string(quote)
         print "returning quote: "+ quote_string
         return jsonify({'text': quote_string})
 
@@ -166,8 +180,8 @@ def create_quote():
     print quote
     print quote_by
     quote_obj = {
-        'quote': quote,
-        'by': quote_by
+        'quote': quote.split("\n"),
+        'by': quote_by.split('\n')
     }
     #add quote to list
     quotes.append(quote_obj)
@@ -176,7 +190,7 @@ def create_quote():
     with open('webapps/slack_webhooks/slack_webhooks/quoteboard.csv', 'ab') as csvfile:
         quote_writer = csv.writer(csvfile, delimiter=',',
                             quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-        quote_writer.writerow([quote_obj['by'], quote_obj['quote']])
+        quote_writer.writerow([quote_by, quote])
 
     # add quote to markov file for use in quote generation
     with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'ab') as markovfile:
@@ -193,8 +207,8 @@ def create_quote():
             break
 
     # return a nice message so everyone knows it worked
-    return_quote = "Quoth *"+ quote_by +"* \" "+ quote +" \""
-    return jsonify({"text": return_quote})
+    #return_quote = "Quoth *"+ quote_by +"* \" "+ quote +" \""
+    return ""
 
 @app.route('/genquote', methods = ["POST"])
 def generate():
@@ -213,9 +227,11 @@ def init_db():
         quote_reader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in quote_reader:
             quote_text = row[1]
+            all_quotes = quote_text.split("\n")
+            all_quoters = row[0].split("\n")
             quote = {
-                'quote': quote_text,
-                'by': row[0]
+                'quotes': all_quotes,
+                'by': all_quoters
             }
             quotes.append(quote)
             if quote_text[-1] != '.' and quote_text[-1] != '!' and quote_text[-1] != '?':
@@ -224,8 +240,8 @@ def init_db():
                 quote_text += ' '
 
             quotes_text += quote_text
-            with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'wb') as markovfile:
-                markovfile.write(quotes_text)
+    with open('webapps/slack_webhooks/slack_webhooks/markov.txt', 'wb') as markovfile:
+        markovfile.write(quotes_text)
 
 init_db()
 
