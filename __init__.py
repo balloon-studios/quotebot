@@ -99,7 +99,10 @@ def search_quotes():
     best_match_word_bag = set()
 
     for quote in quotes:
-        compare_bag = get_bag_of_words(quote['quote'].join("\n"))
+        print quote['quotes']
+        quote_to_compare = "\n".join(quote['quotes'])
+        print "comparing "+ quote_to_compare
+        compare_bag = get_bag_of_words(quote_to_compare)
         intersection_bag = compare_bag.intersection(search_bag)
         if number_of_matched_words < len(intersection_bag):
             number_of_matched_words = len(intersection_bag)
@@ -107,7 +110,7 @@ def search_quotes():
 
 
     if best_match_quote is not None:
-        quote_string = "*"+ best_match_quote['by'] + "* - \""+ best_match_quote['quote'] +"\""
+        quote_string = quote_as_string(best_match_quote)
         print "returning quote: "+ quote_string
         return jsonify({'text': quote_string})
 
@@ -118,7 +121,8 @@ def search_quotes():
 @app.route('/quote', methods = ["POST"])
 def get_quote():
     # get the quote info from the form
-    quoter = request.form['text'].replace("quote", "")
+    quoter = re.sub('(?i)' + re.escape('quote'), "", request.form['text'])
+  #  quoter = .replace("quote", "")
 
     # work out which initials/name to look for
     if len(quoter) > 0:
@@ -174,7 +178,7 @@ def create_quote():
     # remove all punctuation except for whitespace and any bot text to leave
     # only the quoter information
     quote_by = strip_non_alphanumeric(quote_text)
-    quote_by = quote_by.replace("addquote", "")
+    quote_by = re.sub('(?i)' + re.escape('addquote'), "", quote_by)
     quote_by = quote_by.strip()
 
     print quote
